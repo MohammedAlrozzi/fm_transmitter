@@ -1,40 +1,69 @@
 #!/usr/bin/python
 
-import os, argparse
+import os, sys, ConfigParser
 
-parser = argparse.ArgumentParser(prog='python PiStation.py', description='Broadcasts WAV/MP3 file over FM using RPI GPIO #4 pin.')
-parser.add_argument("song_file")
-parser.add_argument("-f", "--frequency", help="Set TX frequency. Acceptable range 87.1-108.2", type=float)
-arg = parser.parse_args()
 
-def main():
-    os.system('clear')
-    frequency = 0
-    #frequency=freq()	
-    print ("Welcome to PiStation!  \nVersion 1.0 \nGPLv3 License\n")    
-    #This block is for setting default values for frequency in case argument is not provided
-    if arg.frequency is None:
-        frequency = raw_input("Enter the frequency (press Enter to set default frequency of 103.3 MHz) : ")
-        if frequency == "":
-            frequency = '103.3'
-    elif 87.1 >= arg.frequency >= 108.2:
-        print "Frequency argument out of range.";exit()
-    else:
-	frequency = str(arg.frequency)
-    print frequency
-    try:
-        if ".mp3" in arg.song_file.lower():
-            os.system("ffmpeg -i "+arg.song_file+" "+"-f s16le -ar 22.05k -ac 1 - | sudo ./fm_transmitter -f"+" "+frequency+" "+" - ")
-        elif ".wav" in arg.song_file.lower():	    
-	    os.system("sudo ./fm_transmitter -f"+" "+frequency+" "+arg.song_file)
-        else:
-            print "That file extension is not supported."
-            print "File name provided: %s" %arg.song_file
-            raise IOError
-    except Exception:
-        print "Something went wrong. Halting."; exit()
-    except IOError:
-        print "There was an error regarding file selection. Halting."; exit()
+class PiStation:
+    frequency = "89.9"
+    file_list = []
+
+    def __init__(self):
+        os.system('clear')
+        print "Welcome to PiStation!"
+        print "Version 1.0"
+        print "GPLv3 License"
+
+        self.find_files()
+        self.get_config()
+        print "Broadcasting on frequency " , self.frequency 
     
+    def get_config(self):
+        config = ConfigParser.ConfigParser()
+        config.read('pistation.conf')
+        try:
+            self.frequency = config.get('pistation', 'frequency')
+        except expression as identifier:
+            print "Error while reading frequency in pistation.conf"
+        
+
+    def play(self):
+        for song_file in self.file_list:
+            self.playSong(song_file)
+    
+    def find_files(self):
+        
+        for root, folders, files in os.walk('/media/pi/'):
+            folders.sort()
+            files.sort()
+            for filename in files:
+                if re.search(".(aac|mp3|wav|flac|m4a|ogg|pls|m3u)$", filename) != None: 
+                    self.file_list.append(os.path.join(root, filename))
+
+    def playSong(self, song_file):
+        try:
+            if ".mp3" in song_file.lower():
+                cmd = "ffmpeg -i %s -f s16le -ar 22.05k -ac 1 - | sudo ./fm_transmitter -f %s - "%(song_file, self.frequency)
+                os.system(cmd)
+            elif ".wav" in song_file.lower():
+                cmd = "sudo ./fm_transmitter -f %s %s "%(self.frequency, song_file)
+                os.system(cmd)
+            else:
+                print "That file extension is not supported."
+                print "File name provided: %s" % song_file
+                raise IOError
+        except IOError:
+            print "There was an error regarding file selection. Halting."
+            exit()
+        except Exception:
+            print "Something went wrong. Halting."
+            exit()
+
+
+
 if __name__ == '__main__':
-    main()
+    try:
+        pi = PiStation()
+        pi.play()
+    except KeyboardInterrupt:
+        print "Exit"
+        sys.exit(0)
